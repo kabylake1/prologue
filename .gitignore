@@ -1,0 +1,7 @@
+*
+!.gitignore
+!build.sh
+!*.png
+!*.cbl
+!*.cpy
+!main.c
