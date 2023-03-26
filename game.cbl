@@ -29,12 +29,16 @@
        environment division.
        input-output section.
        file-control.
-           select fs-inputs assign to "map.txt"
+           select fs-tile-rows assign to "map.txt"
+           organization is line sequential.
+           select fs-path-rows assign to "path.txt"
            organization is line sequential.
        data division.
        file section.
-       fd  fs-inputs.
-       01  fs-input picture x(1024).
+       fd  fs-tile-rows.
+       01  fs-tile-row picture x(1024).
+       fd  fs-path-rows.
+       01  fs-path-row picture x(1024).
        working-storage section.
        01  i picture is 9(4) computational.
        01  ws-row picture is 9(8).
@@ -43,6 +47,8 @@
        copy "rtex.cpy" replacing ==:pref:== by ==ws-cat==
                                  ==:level:== by ==01==.
        copy "rtex.cpy" replacing ==:pref:== by ==ws-tileset==
+                                 ==:level:== by ==01==.
+       copy "rtex.cpy" replacing ==:pref:== by ==ws-carset==
                                  ==:level:== by ==01==.
        linkage section.
        copy "gstt.cpy" replacing ==:pref:== by ==ls-gs==
@@ -64,6 +70,10 @@
            call "raylib-load-texture" using by reference "cat.png"
                by value ls-gs-cat end-call.
       *
+           set ls-gs-carset to address of ws-carset.
+           call "raylib-load-texture" using by reference "traffic.png"
+               by value ls-gs-carset end-call.
+      *
            move 300 to ls-gs-map-width.
            move 180 to ls-gs-map-height.
            move 150 to ls-gs-player-pos-x.
@@ -73,19 +83,40 @@
            multiply ls-gs-player-pos-y by ls-gs-tilesize
                giving ls-gs-player-pos-y end-multiply.
       *
-           open input sharing with all fs-inputs.
+           perform varying i from 1 by 1
+           until i > 64
+               move 150 to ls-gs-traffic-pos-x(i)
+               multiply ls-gs-traffic-pos-x(i) by ls-gs-tilesize
+                   giving ls-gs-traffic-pos-x(i) end-multiply
+               move 32 to ls-gs-traffic-pos-y(i)
+               multiply ls-gs-traffic-pos-y(i) by ls-gs-tilesize
+                   giving ls-gs-traffic-pos-y(i) end-multiply
+           end-perform.
+      *
+           initialize ws-row.
+           open input sharing with all fs-tile-rows.
            perform forever
-               read fs-inputs
+               read fs-tile-rows
                    not at end perform read-map-row
                    at end exit perform
                end-read
            end-perform.
-           close fs-inputs.
+           close fs-tile-rows.
+      *
+           initialize ws-row.
+           open input sharing with all fs-path-rows.
+           perform forever
+               read fs-path-rows
+                   not at end perform read-path-row
+                   at end exit perform
+               end-read
+           end-perform.
+           close fs-path-rows.
            goback.
        read-map-row.
            perform varying i from 1 by 1
-           until i is greater than function length(fs-input)
-               evaluate fs-input(i:1)
+           until i is greater than function length(fs-tile-row)
+               evaluate fs-tile-row(i:1)
                    when 'A' move 0 to ws-tile
                    when 'B' move 1 to ws-tile
                    when 'C' move 2 to ws-tile
@@ -112,6 +143,32 @@
                    when 'X' move 23 to ws-tile
                    when 'Y' move 24 to ws-tile
                    when 'Z' move 25 to ws-tile
+                   when 'a' move 26 to ws-tile
+                   when 'b' move 27 to ws-tile
+                   when 'c' move 28 to ws-tile
+                   when 'd' move 29 to ws-tile
+                   when 'e' move 30 to ws-tile
+                   when 'f' move 31 to ws-tile
+                   when 'g' move 32 to ws-tile
+                   when 'h' move 33 to ws-tile
+                   when 'i' move 34 to ws-tile
+                   when 'j' move 35 to ws-tile
+                   when 'k' move 36 to ws-tile
+                   when 'l' move 37 to ws-tile
+                   when 'm' move 38 to ws-tile
+                   when 'n' move 39 to ws-tile
+                   when 'o' move 40 to ws-tile
+                   when 'p' move 41 to ws-tile
+                   when 'q' move 42 to ws-tile
+                   when 'r' move 43 to ws-tile
+                   when 's' move 44 to ws-tile
+                   when 't' move 45 to ws-tile
+                   when 'u' move 46 to ws-tile
+                   when 'v' move 47 to ws-tile
+                   when 'w' move 48 to ws-tile
+                   when 'x' move 49 to ws-tile
+                   when 'y' move 50 to ws-tile
+                   when 'z' move 51 to ws-tile
                    when other exit perform
                end-evaluate
       *
@@ -121,6 +178,18 @@
                add i to ws-offset giving ws-offset end-add
       *
                move ws-tile to ls-gs-map-tiles(ws-offset)
+           end-perform.
+           add 1 to ws-row giving ws-row end-add.
+       read-path-row.
+           perform varying i from 1 by 1
+           until i is greater than function length(fs-path-row)
+      *
+               move ws-row to ws-offset
+               multiply ws-offset by ls-gs-map-width giving ws-offset
+               end-multiply
+               add i to ws-offset giving ws-offset end-add
+      *
+               move fs-path-row(i:1) to ls-gs-map-paths(ws-offset)
            end-perform.
            add 1 to ws-row giving ws-row end-add.
        end program kgame-load.
@@ -140,6 +209,8 @@
        copy "gstt.cpy" replacing ==:pref:== by ==ls-gs==
                                  ==:level:== by ==01==.
        procedure division using by reference ls-gs.
+      *
+           call "kgame-traffic-eval" using by reference ls-gs end-call.
       *
            initialize ws-has-moved.
       *
@@ -206,6 +277,95 @@
            move 0 to ls-gs-is-facing-left.
            move 1 to ws-has-moved.
        end program kgame-loop.
+      *
+       identification division.
+       program-id. kgame-traffic-eval.
+       data division.
+       working-storage section.
+       01  ws-index picture is 9(8) computational.
+       01  ws-tile picture is 9(8).
+       01  ws-velocity :tp-float:.
+       01  ws-tmp picture is 9(8).
+       01  ws-dir picture is x.
+       01  ws-discard picture is 9(8).
+       01  ws-target-tile picture is x.
+       01  ws-total-mapsize picture is 9(8).
+       linkage section.
+       copy "gstt.cpy" replacing ==:pref:== by ==ls-gs==
+                                 ==:level:== by ==01==.
+       procedure division using by reference ls-gs.
+      *Do paths for the traffic cars
+           perform varying ws-index from 1 by 1
+           until ws-index > 64
+      *Car logic
+               move 16.0 to ws-velocity
+               multiply ls-gs-traffic-pos-y(ws-index) by ls-gs-map-width
+                   giving ws-tile end-multiply
+               add ls-gs-traffic-pos-x(ws-index) to ws-tile
+                   giving ws-tile end-add
+               divide ws-tile by 16 giving ws-tile end-divide
+               move ls-gs-map-paths(ws-tile) to ws-dir
+               if ws-dir is equal to 'X' then
+                   call "rand" returning ws-tmp end-call
+                   divide ws-tmp by 4
+                       giving ws-discard rounded
+                       remainder ws-tmp end-divide
+                   evaluate ws-tmp
+                       when 3 move 'L' to ws-dir
+                       when 2 move 'R' to ws-dir
+                       when 1 move 'U' to ws-dir
+                       when 0 move 'D' to ws-dir
+                   end-evaluate
+
+                   evaluate ws-dir
+                        when 'L'
+                           subtract 1 from ws-tile giving ws-tile
+                               end-subtract
+                        when 'R'
+                            add 1 to ws-tile giving ws-tile end-add
+                        when 'U'
+                            subtract ls-gs-map-width from ws-tile
+                               end-subtract
+                        when 'D'
+                            add ls-gs-map-width to ws-tile
+                               end-add
+                    end-evaluate
+      *
+                    multiply ls-gs-map-width by ls-gs-map-height
+                       giving ws-total-mapsize end-multiply
+                    if ws-tile is greater than ws-total-mapsize then
+                       move '.' to ws-dir
+                    end-if
+                    evaluate ls-gs-map-paths(ws-tile)
+                        *> Grasslands/non-car friendly land
+                        when '.' move '.' to ws-dir
+                        *> Pedestrian stuff
+                        when 'P' move '.' to ws-dir
+                    end-evaluate
+               end-if
+               evaluate ws-dir
+                   when 'L'
+                       subtract ws-velocity
+                           from ls-gs-traffic-pos-x(ws-index)
+                           giving ls-gs-traffic-pos-x(ws-index)
+                           end-subtract
+                   when 'R'
+                       add ws-velocity to ls-gs-traffic-pos-x(ws-index)
+                           giving ls-gs-traffic-pos-x(ws-index)
+                           end-add
+                   when 'U'
+                       subtract ws-velocity
+                           from ls-gs-traffic-pos-y(ws-index)
+                           giving ls-gs-traffic-pos-y(ws-index)
+                           end-subtract
+                   when 'D'
+                       add ws-velocity to ls-gs-traffic-pos-y(ws-index)
+                           giving ls-gs-traffic-pos-y(ws-index)
+                           end-add
+               end-evaluate
+           end-perform.
+           goback.
+       end program kgame-traffic-eval.
       *
        identification division.
        program-id. kgame-draw-loop.
@@ -283,10 +443,15 @@
                                  ==:level:== by ==01==.
        copy "rve2.cpy" replacing ==:pref:== by ==ws-player-pos==
                                  ==:level:== by ==01==.
+       copy "rrec.cpy" replacing ==:pref:== by ==ws-traffic-rec==
+                                 ==:level:== by ==01==.
+       copy "rve2.cpy" replacing ==:pref:== by ==ws-traffic-pos==
+                                 ==:level:== by ==01==.
        01  ws-mx picture 9(4) computational.
        01  ws-my picture 9(4) computational.
        01  ws-index picture 9(8).
        01  ws-tileindex picture 9(8).
+       01  ws-traffic-index picture 9(8).
        linkage section.
        copy "gstt.cpy" replacing ==:pref:== by ==ls-gs==
                                  ==:level:== by ==01==.
@@ -300,10 +465,37 @@
                end-perform
            end-perform.
       *
+           perform varying ws-traffic-index from 1 by 1
+           until ws-traffic-index > 64
+               perform draw-traffic
+           end-perform.
+      *
            perform draw-player.
       *
            goback.
+       draw-traffic.
+           initialize ws-traffic-pos.
+           move ls-gs-traffic-pos-x(ws-traffic-index)
+               to ws-traffic-pos-x.
+           move ls-gs-traffic-pos-y(ws-traffic-index)
+               to ws-traffic-pos-y.
+      *
+           initialize ws-traffic-rec.
+           multiply 0 by ls-gs-tilesize
+               giving ws-traffic-rec-y end-multiply.
+           add ls-gs-tilesize to 0 giving ws-traffic-rec-width end-add.
+           set ws-traffic-rec-height to ws-traffic-rec-width.
+      *
+           set ws-colour-r,
+               ws-colour-g,
+               ws-colour-b,
+               ws-colour-a to 255.
+           call "raylib-draw-texture-rec" using by value ls-gs-carset
+               by content ws-traffic-rec
+               by content ws-traffic-pos
+               by content ws-colour end-call.
        draw-player.
+           initialize ws-player-pos.
            move ls-gs-player-pos-x to ws-player-pos-x.
            move ls-gs-player-pos-y to ws-player-pos-y.
       *
