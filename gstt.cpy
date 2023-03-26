@@ -18,6 +18,7 @@
            40 :pref:-cat usage is pointer.
            40 :pref:-carset usage is pointer.
            40 :pref:-tileset usage is pointer.
-           40 :pref:-traffic occurs 64 times.
-               41 :pref:-traffic-pos-x :tp-float:.
-               41 :pref:-traffic-pos-y :tp-float:.
+           40 :pref:-traffic occurs 128 times.
+               45 :pref:-traffic-pos-x :tp-float:.
+               45 :pref:-traffic-pos-y :tp-float:.
+               45 :pref:-traffic-last-dir picture is x.

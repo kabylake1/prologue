@@ -78,19 +78,19 @@
            move 180 to ls-gs-map-height.
            move 150 to ls-gs-player-pos-x.
            multiply ls-gs-player-pos-x by ls-gs-tilesize
-               giving ls-gs-player-pos-x end-multiply.
+               giving ls-gs-player-pos-x rounded end-multiply.
            move 32 to ls-gs-player-pos-y.
            multiply ls-gs-player-pos-y by ls-gs-tilesize
-               giving ls-gs-player-pos-y end-multiply.
+               giving ls-gs-player-pos-y rounded end-multiply.
       *
            perform varying i from 1 by 1
-           until i > 64
+           until i > 128
                move 150 to ls-gs-traffic-pos-x(i)
                multiply ls-gs-traffic-pos-x(i) by ls-gs-tilesize
-                   giving ls-gs-traffic-pos-x(i) end-multiply
+                   giving ls-gs-traffic-pos-x(i) rounded end-multiply
                move 32 to ls-gs-traffic-pos-y(i)
                multiply ls-gs-traffic-pos-y(i) by ls-gs-tilesize
-                   giving ls-gs-traffic-pos-y(i) end-multiply
+                   giving ls-gs-traffic-pos-y(i) rounded end-multiply
            end-perform.
       *
            initialize ws-row.
@@ -287,6 +287,7 @@
        01  ws-velocity :tp-float:.
        01  ws-tmp picture is 9(8).
        01  ws-dir picture is x.
+       01  ws-prev-dir picture is x.
        01  ws-discard picture is 9(8).
        01  ws-target-tile picture is x.
        01  ws-total-mapsize picture is 9(8).
@@ -296,27 +297,35 @@
        procedure division using by reference ls-gs.
       *Do paths for the traffic cars
            perform varying ws-index from 1 by 1
-           until ws-index > 64
+           until ws-index > 128
       *Car logic
-               move 16.0 to ws-velocity
+               call "rand" returning ws-tmp end-call
+               divide ws-tmp by 4 giving ws-discard rounded
+                   remainder ws-tmp rounded end-divide
+               evaluate ws-tmp
+                   when 3 move 16.0 to ws-velocity
+                   when 2 move 16.0 to ws-velocity
+                   when 1 move 16.0 to ws-velocity
+                   when 0 move 16.0 to ws-velocity
+               end-evaluate
+      *
                multiply ls-gs-traffic-pos-y(ws-index) by ls-gs-map-width
-                   giving ws-tile end-multiply
+                   giving ws-tile rounded end-multiply
                add ls-gs-traffic-pos-x(ws-index) to ws-tile
-                   giving ws-tile end-add
-               divide ws-tile by 16 giving ws-tile end-divide
+                   giving ws-tile rounded end-add
+               divide ws-tile by 16 giving ws-tile rounded end-divide
                move ls-gs-map-paths(ws-tile) to ws-dir
                if ws-dir is equal to 'X' then
                    call "rand" returning ws-tmp end-call
-                   divide ws-tmp by 4
-                       giving ws-discard rounded
-                       remainder ws-tmp end-divide
+                   divide ws-tmp by 4 giving ws-discard rounded
+                       remainder ws-tmp rounded end-divide
                    evaluate ws-tmp
                        when 3 move 'L' to ws-dir
                        when 2 move 'R' to ws-dir
                        when 1 move 'U' to ws-dir
                        when 0 move 'D' to ws-dir
                    end-evaluate
-
+      *
                    evaluate ws-dir
                         when 'L'
                            subtract 1 from ws-tile giving ws-tile
@@ -335,13 +344,31 @@
                        giving ws-total-mapsize end-multiply
                     if ws-tile is greater than ws-total-mapsize then
                        move '.' to ws-dir
+                    else
+                       evaluate ls-gs-map-paths(ws-tile)
+      *Grasslands/non-car friendly land
+                           when '.' move '.' to ws-dir
+      *Pedestrian stuff
+                           when 'P' move '.' to ws-dir
+      *Going against street direction
+                           when 'L'
+                              if ws-dir is equal to 'R' then
+                                  move 'L' to ws-dir
+                              end-if
+                           when 'R'
+                              if ws-dir is equal to 'L' then
+                                  move 'R' to ws-dir
+                              end-if
+                           when 'U'
+                              if ws-dir is equal to 'D' then
+                                  move 'U' to ws-dir
+                              end-if
+                           when 'D'
+                              if ws-dir is equal to 'U' then
+                                  move 'D' to ws-dir
+                              end-if
+                       end-evaluate
                     end-if
-                    evaluate ls-gs-map-paths(ws-tile)
-                        *> Grasslands/non-car friendly land
-                        when '.' move '.' to ws-dir
-                        *> Pedestrian stuff
-                        when 'P' move '.' to ws-dir
-                    end-evaluate
                end-if
                evaluate ws-dir
                    when 'L'
@@ -363,6 +390,7 @@
                            giving ls-gs-traffic-pos-y(ws-index)
                            end-add
                end-evaluate
+               move ws-dir to ls-gs-traffic-last-dir(ws-index)
            end-perform.
            goback.
        end program kgame-traffic-eval.
@@ -452,6 +480,8 @@
        01  ws-index picture 9(8).
        01  ws-tileindex picture 9(8).
        01  ws-traffic-index picture 9(8).
+       01  ws-traffic-sprite picture 9(8).
+       01  ws-discard picture 9(8).
        linkage section.
        copy "gstt.cpy" replacing ==:pref:== by ==ls-gs==
                                  ==:level:== by ==01==.
@@ -466,7 +496,7 @@
            end-perform.
       *
            perform varying ws-traffic-index from 1 by 1
-           until ws-traffic-index > 64
+           until ws-traffic-index > 128
                perform draw-traffic
            end-perform.
       *
@@ -480,10 +510,24 @@
            move ls-gs-traffic-pos-y(ws-traffic-index)
                to ws-traffic-pos-y.
       *
+           initialize ws-traffic-sprite, ws-discard.
+           divide ws-traffic-index by 16 giving ws-discard rounded
+               remainder ws-traffic-sprite end-divide.
+           multiply ws-traffic-sprite by 2
+               giving ws-traffic-sprite end-multiply.
+           evaluate ls-gs-traffic-last-dir(ws-traffic-index)
+               when 'U'
+                   add 1 to ws-traffic-sprite
+                       giving ws-traffic-sprite end-add
+               when 'D'
+                   add 1 to ws-traffic-sprite
+                       giving ws-traffic-sprite end-add
+           end-evaluate.
+      *
            initialize ws-traffic-rec.
-           multiply 0 by ls-gs-tilesize
+           multiply ws-traffic-sprite by ls-gs-tilesize
                giving ws-traffic-rec-y end-multiply.
-           add ls-gs-tilesize to 0 giving ws-traffic-rec-width end-add.
+           add 0 to ls-gs-tilesize giving ws-traffic-rec-width end-add.
            set ws-traffic-rec-height to ws-traffic-rec-width.
       *
            set ws-colour-r,
@@ -502,7 +546,7 @@
            initialize ws-player-rec.
            multiply ls-gs-cat-anim-frame by ls-gs-tilesize
                giving ws-player-rec-y end-multiply.
-           add ls-gs-tilesize to 0 giving ws-player-rec-width end-add.
+           add 0 to ls-gs-tilesize giving ws-player-rec-width end-add.
            set ws-player-rec-height to ws-player-rec-width.
       *
            set ws-colour-r,
@@ -530,7 +574,7 @@
            initialize ws-tile-rec.
            multiply ws-tileindex by ls-gs-tilesize giving ws-tile-rec-y
                end-multiply.
-           add ls-gs-tilesize to 0 giving ws-tile-rec-width end-add.
+           add 0 to ls-gs-tilesize giving ws-tile-rec-width end-add.
            set ws-tile-rec-height to ws-tile-rec-width.
       *
            set ws-colour-r,
